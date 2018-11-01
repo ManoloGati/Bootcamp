@@ -1,0 +1,113 @@
+1. crear carpetas para el desafio
+hdfs dfs -mkdir /user/desafio
+hdfs dfs -mkdir /user/desafio/log
+
+-- Conectarme a mysql remoto
+mysql -u bootcamp -h 34.205.65.241 -p
+
+2. Verificar si existe la conexion en la BD MySQL
+sqoop list-tables --driver com.mysql.jdbc.Driver --connect jdbc:mysql://34.205.65.241:3306/ecommerce_cloudera --username bootcamp --password bootcamp
+mysql -u bootcamp -h 34.205.65.241 -p
+
+
+3. Hacer la ingesta
+sqoop import --driver com.mysql.jdbc.Driver --connect jdbc:mysql://34.205.65.241:3306/ecommerce_cloudera  --username bootcamp --password bootcamp --table product_transaction --split-by transaction_id --target-dir /user/desafio/product_transaction
+
+4. Revisar la ingesta
+hdfs dfs -ls /user/desafio/product_transaction
+
+5. Descargar el archivo access.log
+wget http://34.205.65.241/access.log
+
+6. Guardar el archivo log en HDFS
+hdfs dfs -put * /user/desafio/log
+
+7. Crear tabla en Hive con un serde
+
+ip, time_local, method, uri, protocol, status, bytes_sent, referer, useragent
+
+CREATE EXTERNAL TABLE IF NOT EXISTS navegacion_logs (
+  ip STRING,
+  time_local STRING,
+  method STRING,
+  uri STRING,
+  protocol STRING,
+  status STRING,
+  bytes_sent STRING,
+  referer STRING,
+  useragent STRING
+ ) ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.RegexSerDe'
+ WITH SERDEPROPERTIES (
+ 'input.regex' = '^(\\S+) \\S+ \\S+ \\[([^\\[]+)\\] "(\\w+) (\\S+) (\\S+)" (\\d+) (\\d+) "([^"]+)" "([^"]+)".*'
+ ) LOCATION '/user/desafio/log/';
+ 
+ CREATE EXTERNAL TABLE IF NOT EXISTS product_transaction (
+  transaction_id INT,
+  transaction_time TIMESTAMP,
+  customer_ssn  STRING,
+  customer_name STRING,
+  customer_email STRING,
+  customer_adress STRING,
+  customer_state STRING,
+  customer_zipcode STRING,
+  product_id INT,
+  product_cantity INT
+ ) ROW FORMAT delimited fields TERMINATED BY ','
+ STORED AS TEXTFILE LOCATION '/user/desafio/product_transaction';
+ 
+ -- obtenemo los sku de los productos navegados
+ select count(*), substring(uri,length(uri)-5) from navegacion_logs group by substring(uri,length(uri)-5);
+ 
+ -- Obtenemos la cantidad de productos vendidos
+ select count(*), product_id, sum(product_cantity) from product_transaction group by product_id;
+ 
+ -- Join para saber la converision de las ventas sobre los productos consultados
+SELECT t1.product_id, t2.ventas/t1.consultas as conversion
+FROM 
+    (select count(*) as consultas, substring(uri,length(uri)-5) as product_id from navegacion_logs
+    group by substring(uri,length(uri)-5)) t1
+JOIN
+    (select product_id, sum(product_cantity) as ventas from product_transaction
+    group by product_id) t2
+ON (t1.product_id = t2.product_id);
+ 
+ 8. Crear la tabla en hive con el JOIN anterior e insertar
+ 
+CREATE TABLE IF NOT EXISTS conversion_4 (
+  sku STRING,
+  conversion STRING
+ )
+ 
+ INSERT INTO conversion_4 
+SELECT t1.product_id, t2.ventas/t1.consultas as conversion
+FROM 
+    (select substring(uri,length(uri)-5) as product_id, count(*) as consultas from navegacion_logs
+    group by substring(uri,length(uri)-5)) t1
+JOIN
+    (select product_id, sum(product_cantity) as ventas from product_transaction
+    group by product_id) t2
+ON (t1.product_id = t2.product_id);
+
+9. exportar la tabla anterior a un archivo
+
+INSERT OVERWRITE LOCAL DIRECTORY '/home/ec2-user/desafio'
+ROW FORMAT DELIMITED
+FIELDS TERMINATED BY ','
+LINES TERMINATED BY "\n"
+SELECT * FROM conversion_4;
+
+10. exportar los datos desde hive a MySQL
+
+$sqoop export --connect jdbc:mysql://34.205.65.241:3306/ecommerce_cloudera --username bootcamp --password bootcamp --table conversion_4 -m 10 --hcatalog-table conversion_4
+
+
+
+
+
+
+
+
+
+ 
+ 
+ 
