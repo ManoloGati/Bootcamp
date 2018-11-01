@@ -55,7 +55,7 @@ CREATE EXTERNAL TABLE IF NOT EXISTS navegacion_logs (
  ) ROW FORMAT delimited fields TERMINATED BY ','
  STORED AS TEXTFILE LOCATION '/user/desafio/product_transaction';
  
- -- obtenemo los sku de los productos navegados
+ -- obtenemos los sku de los productos navegados
  select count(*), substring(uri,length(uri)-5) from navegacion_logs group by substring(uri,length(uri)-5);
  
  -- Obtenemos la cantidad de productos vendidos
@@ -88,15 +88,7 @@ JOIN
     group by product_id) t2
 ON (t1.product_id = t2.product_id);
 
-9. exportar la tabla anterior a un archivo
-
-INSERT OVERWRITE LOCAL DIRECTORY '/home/ec2-user/desafio'
-ROW FORMAT DELIMITED
-FIELDS TERMINATED BY ','
-LINES TERMINATED BY "\n"
-SELECT * FROM conversion_4;
-
-10. exportar los datos desde hive a MySQL
+9. exportar los datos desde hive a MySQL
 
 $sqoop export --connect jdbc:mysql://34.205.65.241:3306/ecommerce_cloudera --username bootcamp --password bootcamp --table conversion_4 -m 10 --hcatalog-table conversion_4
 
