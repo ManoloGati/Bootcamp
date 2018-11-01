@@ -1,3 +1,8 @@
+DESAFIO BOOTCAMP BOGOTA
+
+Manuel Enrique Maca Orozco
+mmaca@gaticonsultores.com.co
+
 1. crear carpetas para el desafio
 hdfs dfs -mkdir /user/desafio
 hdfs dfs -mkdir /user/desafio/log
